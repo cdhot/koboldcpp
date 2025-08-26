@@ -36,37 +36,46 @@ typedef ushort uint16_t;
 typedef int int32_t;
 typedef uint uint32_t;
 
+#ifdef FP16_SUPPORT
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+typedef half ggml_half_t;
+#define GGML_LOAD_HALF(ptr) vload_half(0, ptr)
+#else
+typedef float ggml_half_t;
+#define GGML_LOAD_HALF(ptr) (*(ptr))
+#endif
+
 struct __attribute__ ((packed)) block_q4_0
 {
-    half d;
+    ggml_half_t d;
     uint8_t qs[QK4_0 / 2];
 };
 
 struct __attribute__ ((packed)) block_q4_1
 {
-    half d;
-    half m;
+    ggml_half_t d;
+    ggml_half_t m;
     uint8_t qs[QK4_1 / 2];
 };
 
 struct __attribute__ ((packed)) block_q5_0
 {
-    half d;
+    ggml_half_t d;
     uint32_t qh;
     uint8_t qs[QK5_0 / 2];
 };
 
 struct __attribute__ ((packed)) block_q5_1
 {
-    half d;
-    half m;
+    ggml_half_t d;
+    ggml_half_t m;
     uint32_t qh;
     uint8_t qs[QK5_1 / 2];
 };
 
 struct __attribute__ ((packed)) block_q8_0
 {
-    half d;
+    ggml_half_t d;
     int8_t qs[QK8_0];
 };
 
@@ -74,8 +83,8 @@ struct __attribute__((packed)) block_q2_K
 {
     uint8_t scales[16];
     uint8_t qs[64];
-    half d;
-    half dmin;
+    ggml_half_t d;
+    ggml_half_t dmin;
 };
 
 struct __attribute__((packed)) block_q3_K
@@ -83,21 +92,21 @@ struct __attribute__((packed)) block_q3_K
     uint8_t hmask[32];
     uint8_t qs[64];
     uint8_t scales[12];
-    half d;
+    ggml_half_t d;
 };
 
 struct __attribute__((packed)) block_q4_K
 {
-    half d;
-    half dmin;
+    ggml_half_t d;
+    ggml_half_t dmin;
     uint8_t scales[12];
     uint8_t qs[128];
 };
 
 struct __attribute__((packed)) block_q5_K
 {
-    half d;
-    half dmin;
+    ggml_half_t d;
+    ggml_half_t dmin;
     uint8_t scales[12];
     uint8_t qh[32];
     uint8_t qs[128];
@@ -108,17 +117,17 @@ struct __attribute__((packed)) block_q6_K
     uint8_t ql[128];
     uint8_t qh[64];
     int8_t scales[16];
-    half d;
+    ggml_half_t d;
 };
 
-__kernel void convert_fp16_to_fp32(__global half* x, __global float* y) {
+__kernel void convert_fp16_to_fp32(__global ggml_half_t* x, __global float* y) {
     const uint i = get_global_id(0);
 
-    y[i] = vload_half(0, &x[i]);
+    y[i] = GGML_LOAD_HALF(&x[i]);
 }
 
 void dequantize_q4_0(__global const struct block_q4_0* x, const int ib, const int iqs, float* v0, float* v1) {
-    const float d = vload_half(0, &x[ib].d);
+    const float d = GGML_LOAD_HALF(&x[ib].d);
 
     const uint8_t vui = x[ib].qs[iqs];
 
@@ -129,8 +138,8 @@ void dequantize_q4_0(__global const struct block_q4_0* x, const int ib, const in
     *v1 = (vi1 - 8)*d;
 }
 void dequantize_q4_1(__global const struct block_q4_1* x, const int ib, const int iqs, float* v0, float* v1) {
-    const float d = vload_half(0, &x[ib].d);
-    const float m = vload_half(0, &x[ib].m);
+    const float d = GGML_LOAD_HALF(&x[ib].d);
+    const float m = GGML_LOAD_HALF(&x[ib].m);
 
     const uint8_t vui = x[ib].qs[iqs];
 
@@ -141,7 +150,7 @@ void dequantize_q4_1(__global const struct block_q4_1* x, const int ib, const in
     *v1 = vi1*d + m;
 }
 void dequantize_q5_0(__global const struct block_q5_0* x, const int ib, const int iqs, float* v0, float* v1) {
-    const float d = vload_half(0, &x[ib].d);
+    const float d = GGML_LOAD_HALF(&x[ib].d);
 
     uint32_t qh = x[ib].qh;
 
@@ -155,8 +164,8 @@ void dequantize_q5_0(__global const struct block_q5_0* x, const int ib, const in
     *v1 = x1*d;
 }
 void dequantize_q5_1(__global const struct block_q5_1* x, const int ib, const int iqs, float* v0, float* v1) {
-    const float d = vload_half(0, &x[ib].d);
-    const float m = vload_half(0, &x[ib].m);
+    const float d = GGML_LOAD_HALF(&x[ib].d);
+    const float m = GGML_LOAD_HALF(&x[ib].m);
 
     uint32_t qh = x[ib].qh;
 
@@ -170,7 +179,7 @@ void dequantize_q5_1(__global const struct block_q5_1* x, const int ib, const in
     *v1 = x1*d + m;
 }
 void dequantize_q8_0(__global const struct block_q8_0* x, const int ib, const int iqs, float* v0, float* v1) {
-    const float d = vload_half(0, &x[ib].d);
+    const float d = GGML_LOAD_HALF(&x[ib].d);
 
     const int8_t vi0 = x[ib].qs[iqs + 0];
     const int8_t vi1 = x[ib].qs[iqs + 1];
@@ -178,9 +187,9 @@ void dequantize_q8_0(__global const struct block_q8_0* x, const int ib, const in
     *v0 = vi0*d;
     *v1 = vi1*d;
 }
-void convert_f16(__global half* x, const int ib, const int iqs, float* v0, float* v1){
-    *v0 = vload_half(0, &x[ib + 0]);
-    *v1 = vload_half(0, &x[ib + 1]);
+void convert_f16(__global ggml_half_t* x, const int ib, const int iqs, float* v0, float* v1){
+    *v0 = GGML_LOAD_HALF(&x[ib + 0]);
+    *v1 = GGML_LOAD_HALF(&x[ib + 1]);
 }
 );
 
@@ -210,8 +219,8 @@ __kernel void dequantize_block_q2_K(__global const struct block_q2_K *x, __globa
     const uint8_t q = x[i].qs[32 * n + l];
     __global float *y = yy + get_group_id(0) * QK_K + 128 * n;
 
-    const float dall = vload_half(0, &x[i].d);
-    const float dmin = vload_half(0, &x[i].dmin);
+    const float dall = GGML_LOAD_HALF(&x[i].d);
+    const float dmin = GGML_LOAD_HALF(&x[i].dmin);
 
     y[l + 0] = dall * (x[i].scales[is + 0] & 0xF) * ((q >> 0) & 3) - dmin * (x[i].scales[is + 0] >> 4);
     y[l + 32] = dall * (x[i].scales[is + 2] & 0xF) * ((q >> 2) & 3) - dmin * (x[i].scales[is + 2] >> 4);
@@ -237,7 +246,7 @@ __kernel void dequantize_block_q3_K(__global const struct block_q3_K *x, __globa
               : is < 8 ? (x[i].scales[is - 0] & 0xF) | (((x[i].scales[is + 4] >> 2) & 3) << 4)
               : is < 12  ? (x[i].scales[is - 8] >> 4) | (((x[i].scales[is + 0] >> 4) & 3) << 4)
               : (x[i].scales[is - 8] >> 4) | (((x[i].scales[is - 4] >> 6) & 3) << 4);
-    float d_all = vload_half(0, &x[i].d);
+    float d_all = GGML_LOAD_HALF(&x[i].d);
     float dl = d_all * (us - 32);
 
     __global float *y = yy + get_group_id(0) * QK_K + 128 * n + 32 * j;
@@ -259,8 +268,8 @@ __kernel void dequantize_block_q4_K(__global const struct block_q4_K *x, __globa
 
     __global float *y = yy + get_group_id(0) * QK_K + 64 * il + n * ir;
 
-    const float dall = vload_half(0, &x[i].d);
-    const float dmin = vload_half(0, &x[i].dmin);
+    const float dall = GGML_LOAD_HALF(&x[i].d);
+    const float dmin = GGML_LOAD_HALF(&x[i].dmin);
 
     __global const uint8_t *q = x[i].qs + 32 * il + n * ir;
 
@@ -288,8 +297,8 @@ __kernel void dequantize_block_q5_K(__global const struct block_q5_K *x, __globa
 
     __global float *y = yy + get_group_id(0) * QK_K + 64 * il + 2 * ir;
 
-    const float dall = vload_half(0, &x[i].d);
-    const float dmin = vload_half(0, &x[i].dmin);
+    const float dall = GGML_LOAD_HALF(&x[i].d);
+    const float dmin = GGML_LOAD_HALF(&x[i].dmin);
 
     __global const uint8_t *ql = x[i].qs + 32 * il + 2 * ir;
     __global const uint8_t *qh = x[i].qh + 2 * ir;
@@ -320,7 +329,7 @@ __kernel void dequantize_block_q6_K(__global const struct block_q6_K *x, __globa
 
     __global float *y = yy + get_group_id(0) * QK_K + 128 * ip + il;
 
-    const float d = vload_half(0, &x[i].d);
+    const float d = GGML_LOAD_HALF(&x[i].d);
 
     __global const uint8_t *ql = x[i].ql + 64 * ip + il;
     const uint8_t qh = x[i].qh[32 * ip + il];
@@ -365,8 +374,8 @@ __kernel void dequantize_mul_mat_vec_q2_K(__global const struct block_q2_K * xx,
         __global const float   * y = yy + i * QK_K + y_offset;
         __global const uint8_t * q = x[i].qs + q_offset;
 
-        const float dall = vload_half(0, &x[i].d);
-        const float dmin = vload_half(0, &x[i].dmin);
+        const float dall = GGML_LOAD_HALF(&x[i].d);
+        const float dmin = GGML_LOAD_HALF(&x[i].dmin);
 
         __global const uint32_t * a = (__global const uint32_t *)(x[i].scales + s_offset);
         aux[0] = a[0] & 0x0f0f0f0f;
@@ -449,7 +458,7 @@ __kernel void dequantize_mul_mat_vec_q3_K(__global const struct block_q3_K * xx,
         utmp[2] = ((a[2] >> s_shift) & kmask2) | (((a[4] >> (s_shift + 2)) & kmask1) << 4);
         utmp[3] = ((a[3] >> s_shift) & kmask2) | (((a[5] >> (s_shift + 2)) & kmask1) << 4);
 
-        const float d = vload_half(0, &x[i].d);
+        const float d = GGML_LOAD_HALF(&x[i].d);
 
         float sum = 0;
         for (int l = 0; l < n; ++l) {
@@ -520,8 +529,8 @@ __kernel void dequantize_mul_mat_vec_q4_K(__global const struct block_q4_K * xx,
         __global const float   * y1 = yy + i*QK_K + y_offset;
         __global const float   * y2 = y1 + 128;
 
-        const float dall = vload_half(0, &x[i].d);
-        const float dmin = vload_half(0, &x[i].dmin);
+        const float dall = GGML_LOAD_HALF(&x[i].d);
+        const float dmin = GGML_LOAD_HALF(&x[i].dmin);
 
         __global const uint16_t * a = (__global const uint16_t *)x[i].scales;
         aux[0] = a[im+0] & kmask1;
@@ -595,8 +604,8 @@ __kernel void dequantize_mul_mat_vec_q5_K(__global const struct block_q5_K * xx,
         __global const float   * y1  = yy + i*QK_K + y_offset;
         __global const float   * y2  = y1 + 128;
 
-        const float dall = vload_half(0, &x[i].d);
-        const float dmin = vload_half(0, &x[i].dmin);
+        const float dall = GGML_LOAD_HALF(&x[i].d);
+        const float dmin = GGML_LOAD_HALF(&x[i].dmin);
 
         __global const uint16_t * a = (__global const uint16_t *)x[i].scales;
         aux[0] = a[im+0] & kmask1;
@@ -677,7 +686,7 @@ __kernel void dequantize_mul_mat_vec_q6_K(__global const struct block_q6_K * xx,
         __global const uint8_t * qh = x[i].qh + qh_offset;
         __global const int8_t  * s  = x[i].scales + s_offset;
 
-        const float d = vload_half(0, &x[i].d);
+        const float d = GGML_LOAD_HALF(&x[i].d);
 
 \n#if K_QUANTS_PER_ITERATION == 1\n
         float sum = y[ 0] * s[0] * d * ((int8_t)((ql[ 0] & 0xF) | ((qh[ 0] & 0x03) << 4)) - 32)
@@ -831,7 +840,7 @@ static std::array<std::string, 30> dequant_str_values = {
     "dequantize_row_q5_0", "struct block_q5_0", "QK5_0", "QR5_0", "dequantize_q5_0",
     "dequantize_row_q5_1", "struct block_q5_1", "QK5_1", "QR5_1", "dequantize_q5_1",
     "dequantize_row_q8_0", "struct block_q8_0", "QK8_0", "QR8_0", "dequantize_q8_0",
-    "convert_row_f16", "half", "1", "1", "convert_f16"
+    "convert_row_f16", "ggml_half_t", "1", "1", "convert_f16"
 };
 
 static std::array<std::string, 30> dequant_mul_mat_vec_str_values = {
@@ -840,7 +849,7 @@ static std::array<std::string, 30> dequant_mul_mat_vec_str_values = {
     "dequantize_mul_mat_vec_q5_0", "struct block_q5_0", "QK5_0", "QR5_0", "dequantize_q5_0",
     "dequantize_mul_mat_vec_q5_1", "struct block_q5_1", "QK5_1", "QR5_1", "dequantize_q5_1",
     "dequantize_mul_mat_vec_q8_0", "struct block_q8_0", "QK8_0", "QR8_0", "dequantize_q8_0",
-    "convert_mul_mat_vec_f16", "half", "1", "1", "convert_f16"
+    "convert_mul_mat_vec_f16", "ggml_half_t", "1", "1", "convert_f16"
 };
 
 static std::array<std::string, 2> mul_str_keys = {
@@ -897,7 +906,7 @@ static cl_kernel dequantize_mul_mat_vec_q2_K_cl, dequantize_mul_mat_vec_q3_K_cl,
 static cl_kernel mul_f32_cl;
 static bool fp16_support;
 
-static cl_program build_program_from_source(cl_context ctx, cl_device_id dev, const char* program_buffer) {
+static cl_program build_program_from_source(cl_context ctx, cl_device_id dev, const char* program_buffer, bool fp16_support) {
     cl_program p;
     char *program_log;
     size_t program_size;
@@ -915,6 +924,10 @@ static cl_program build_program_from_source(cl_context ctx, cl_device_id dev, co
     std::string compile_opts = "-cl-mad-enable -cl-unsafe-math-optimizations -cl-finite-math-only -cl-fast-relaxed-math "
                                "-DQK4_0=32 -DQR4_0=2 -DQK4_1=32 -DQR4_1=2 -DQK5_0=32 -DQR5_0=2 -DQK5_1=32 -DQR5_1=2 -DQK8_0=32 -DQR8_0=1 "
                                "-DQK_K=256 -DK_QUANTS_PER_ITERATION=" + std::to_string(K_QUANTS_PER_ITERATION);
+
+    if (fp16_support) {
+        compile_opts += " -DFP16_SUPPORT";
+    }
 
     err = clBuildProgram(p, 0, NULL, compile_opts.c_str(), NULL, NULL);
     if(err < 0) {
@@ -1102,8 +1115,9 @@ void ggml_v3_cl_init(void) {
     // Check if ext_buffer contains cl_khr_fp16
     fp16_support = strstr(ext_buffer, "cl_khr_fp16") != NULL;
     fprintf(stderr, "ggml_v3_opencl: device FP16 support: %s\n", fp16_support ? "true" : "false");
-    fp16_support = false;
-    printf("CL FP16 temporarily disabled pending further optimization.\n");
+    if (!fp16_support) {
+        printf("CL FP16 not supported by device, using FP32 fallback.\n");
+    }
 
     cl_context_properties properties[] = {
         (intptr_t)CL_CONTEXT_PLATFORM, (intptr_t)platform, 0
@@ -1118,7 +1132,7 @@ void ggml_v3_cl_init(void) {
 
     const std::string kernel_src = generate_kernels();
 
-    program = build_program_from_source(context, device, kernel_src.c_str());
+    program = build_program_from_source(context, device, kernel_src.c_str(), fp16_support);
 
     // FP16 to FP32 kernel
     CL_CHECK((convert_row_f16_cl = clCreateKernel(program, "convert_row_f16", &err), err));
