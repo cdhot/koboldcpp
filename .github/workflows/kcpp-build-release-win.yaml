@@ -58,12 +58,6 @@ jobs:
           echo VS2019 Setup completed
           exit /b 0
 
-      - uses: Jimver/cuda-toolkit@v0.2.24
-        id: cuda-toolkit
-        with:
-          cuda: '12.1.0'
-          use-github-cache: false
-
       - name: Disable Visual Studio 2022 by Renaming
         run: |
           Rename-Item "C:\Program Files\Microsoft Visual Studio\2022\Enterprise" "Enterprise_DISABLED"
@@ -95,85 +89,11 @@ jobs:
       - name: Build Non-CUDA
         id: make_build
         run: |
-          make LLAMA_CLBLAST=1 LLAMA_VULKAN=1 LLAMA_PORTABLE=1 -j ${env:NUMBER_OF_PROCESSORS}
+          make LLAMA_CLBLAST=1 LLAMA_PORTABLE=1 -j ${env:NUMBER_OF_PROCESSORS}
 
-      - name: Build CUDA
-        id: cmake_build
-        run: |
-          mkdir build
-          cd build
-          cmake .. -DLLAMA_CUBLAS=ON -DCMAKE_SYSTEM_VERSION="10.0.19041.0"
-          cmake --build . --config Release -j 2
-          cd ..
-
-      # note: The libraries that come from the github cuda directory seem to be larger, so they are not recommended
-      # - name: Download CuBLAS Libraries
-      #   run: |
-      #     curl -L https://github.com/LostRuins/koboldcpp/releases/download/cuda11_cublas_libraries/cublas64_11.dll --output cublas64_11.dll
-      #     curl -L https://github.com/LostRuins/koboldcpp/releases/download/cuda11_cublas_libraries/cublasLt64_11.dll --output cublasLt64_11.dll
-      #     ls
-      - name: Copy CuBLAS Libraries
-        run: |
-          copy "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.1\bin\cublasLt64_12.dll" .
-          copy "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.1\bin\cublas64_12.dll" .
-          ls
-
-      - name: Package PyInstallers
-        id: make_pyinstaller
-        run: |
-          ./make_pyinstaller.bat
-          ./make_pyinstaller_cuda.bat
-
-      - name: Save artifact
+      - name: Upload Non-CUDA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kcpp_windows_pyinstallers
-          path: dist/
+          name: koboldcpp_clblast_build
+          path: koboldcpp.exe
 
-      - name: Generate VK Instructions
-        id: gen_vk_instructions
-        run: |
-          echo "If you cannot compile vulkan shaders yourself with glslc, you can manually patch in precompiled vulkan shader source files. Copy ggml-vulkan-shaders.cpp and ggml-vulkan-shaders.hpp to the ggml/src subdirectory in KoboldCpp source files before building." > vulkan-readme.txt
-
-      - name: Save Standalone Vulkan Shaders
-        uses: actions/upload-artifact@v4
-        with:
-          name: vulkan_precompiled_shaders
-          path: |
-            ggml/src/ggml-vulkan-shaders.cpp
-            ggml/src/ggml-vulkan-shaders.hpp
-            vulkan-readme.txt
-
-      - name: Build Tools
-        id: make_tools
-        run: |
-          make tools -j 4
-          New-Item -ItemType Directory -Path legacy
-          Copy-Item quantize_gpt2.exe -Destination legacy
-          Copy-Item quantize_gptj.exe -Destination legacy
-          Copy-Item quantize_mpt.exe -Destination legacy
-          Copy-Item quantize_neox.exe -Destination legacy
-          Copy-Item otherarch/tools/convert_hf_gpt2.py -Destination legacy
-          Copy-Item otherarch/tools/convert_hf_gptj.py -Destination legacy
-          Copy-Item otherarch/tools/convert_hf_mpt.py -Destination legacy
-          Copy-Item otherarch/tools/convert_hf_neox.py -Destination legacy
-          Copy-Item otherarch/tools/convert_llama_ggml_to_gguf.py -Destination legacy
-          Copy-Item otherarch/tools/convert_pt_rwkv.py -Destination legacy
-        shell: pwsh
-
-      - name: Upload Tools
-        uses: actions/upload-artifact@v4
-        with:
-          name: koboldcpp_tools
-          path: |
-            gguf-split.exe
-            quantize_clip.exe
-            quantize_gguf.exe
-            whispermain.exe
-            sdmain.exe
-            ttsmain.exe
-            whispermain.exe
-            convert_hf_to_gguf.py
-            convert_hf_to_gguf_update.py
-            gguf-py
-            legacy
