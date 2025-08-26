@@ -95,5 +95,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: koboldcpp_clblast_build
-          path: koboldcpp.exe
+          path: '*.dll'
 
