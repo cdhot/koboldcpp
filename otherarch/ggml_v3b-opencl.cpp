@@ -45,9 +45,29 @@ float GGML_LOAD_HALF(__global const ggml_half_t* ptr) {
     return vload_half(0, ptr);
 }
 #else
-typedef float ggml_half_t;
+typedef ushort ggml_half_t;  // ushort 16bits
 float GGML_LOAD_HALF(__global const ggml_half_t* ptr) {
-    return *ptr;
+    // convert FP16 to FP32
+    ushort h = *ptr;
+    uint sign = (h & 0x8000u) << 16;
+    uint exp = (h & 0x7c00u);
+    uint mant = (h & 0x03ffu);
+    
+    if (exp == 0) {
+        if (mant == 0) return as_float(sign);
+        exp = 0x38800000u;
+        while ((mant & 0x0400u) == 0) {
+            mant <<= 1;
+            exp -= 0x00800000u;
+        }
+        mant &= 0x03ffu;
+    } else if (exp == 0x7c00u) {
+        exp = 0x7f800000u;
+    } else {
+        exp = (exp << 13) + 0x38000000u;
+    }
+    
+    return as_float(sign | exp | (mant << 13));
 }
 #endif
 
