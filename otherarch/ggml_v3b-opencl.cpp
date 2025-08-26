@@ -41,10 +41,14 @@ typedef uint uint32_t;
 #ifdef FP16_SUPPORT
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 typedef half ggml_half_t;
-#define GGML_LOAD_HALF(ptr) vload_half(0, ptr)
+float GGML_LOAD_HALF(__global const ggml_half_t* ptr) {
+    return vload_half(0, ptr);
+}
 #else
 typedef float ggml_half_t;
-#define GGML_LOAD_HALF(ptr) (*(ptr))
+float GGML_LOAD_HALF(__global const ggml_half_t* ptr) {
+    return *ptr;
+}
 #endif
 
 struct __attribute__ ((packed)) block_q4_0
